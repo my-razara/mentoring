@@ -72,20 +72,42 @@ function _json(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function _jalankan(fn, args) {
+function _jalankan(fn, args, kode) {
   if (API_FUNGSI.indexOf(fn) === -1) throw new Error('Fungsi ' + fn + ' tidak tersedia.');
   const f = globalThis[fn];
   if (typeof f !== 'function') throw new Error('Fungsi ' + fn + ' belum ada di Code.gs.');
   // fungsi yang ngubah data: buang cache dulu biar hasil yang dikirim balik selalu terbaru
   if (fn !== 'getData' && fn !== 'cekKode') _hapusCache();
-  return f.apply(null, Array.isArray(args) ? args : []);
+  return _saring(f.apply(null, Array.isArray(args) ? args : []), kode);
+}
+
+/**
+ * Nomor kontak anggota cuma dikirim ke pengurus yang kodenya benar.
+ * Kode kosong nggak dihitung sebagai percobaan salah; kode terisi tetap
+ * lewat batas percobaan, jadi jalur ini nggak bisa dipakai buat nebak kode.
+ */
+function _saring(data, kode) {
+  if (!data || typeof data !== 'object' || !Array.isArray(data.anggota)) return data;
+  let boleh = false;
+  if (String(kode || '').trim()) {
+    try { boleh = _cocok(kode); } catch (e) { boleh = false; }
+  }
+  if (boleh) return data;
+  const salin = {};
+  Object.keys(data).forEach(function (k) { salin[k] = data[k]; });
+  salin.anggota = data.anggota.map(function (a) {
+    const b = {};
+    Object.keys(a).forEach(function (k) { if (k !== 'Kontak') b[k] = a[k]; });
+    return b;
+  });
+  return salin;
 }
 
 function doGet(e) {
   try {
     const fn = (e && e.parameter && e.parameter.action) || 'getData';
     if (fn !== 'getData') throw new Error('GET cuma buat getData.');
-    return _json({ ok: true, data: getData() });
+    return _json({ ok: true, data: _saring(getData(), '') });
   } catch (err) {
     return _json({ ok: false, error: err.message || String(err) });
   }
@@ -94,7 +116,7 @@ function doGet(e) {
 function doPost(e) {
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    return _json({ ok: true, data: _jalankan(body.fn, body.args) });
+    return _json({ ok: true, data: _jalankan(body.fn, body.args, body.kode) });
   } catch (err) {
     return _json({ ok: false, error: err.message || String(err) });
   }

@@ -590,13 +590,14 @@ function panggil(fn, args){
   if(!url || url.indexOf('script.google.com') === -1){
     return Promise.reject(new Error('API_URL di config.js belum diisi.'));
   }
-  var req = fn === 'getData'
+  // tamu baca lewat GET; pengurus lewat POST biar kodenya nggak nempel di URL
+  var req = (fn === 'getData' && !KODE)
     ? fetch(url + '?action=getData', { redirect: 'follow' })
     : fetch(url, {
         method: 'POST',
         redirect: 'follow',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ fn: fn, args: args || [] })
+        body: JSON.stringify({ fn: fn, args: args || [], kode: KODE || '' })
       });
   return req.then(function(r){
     if(!r.ok) throw new Error('Server error ' + r.status);
@@ -680,7 +681,8 @@ function toggleKode(){
   if(pengurus()){
     KODE = '';
     try { sessionStorage.removeItem('ai_kode'); } catch(e){}
-    render(); toast('Keluar dari mode pengurus');
+    buangKontak();
+    toast('Keluar dari mode pengurus');
     return;
   }
   var input = prompt('Masukkan kode pengurus:');
@@ -690,18 +692,33 @@ function toggleKode(){
     KODE = input;
     try { sessionStorage.setItem('ai_kode', input); } catch(e){}
     render(); toast('Mode pengurus aktif');
+    // ambil ulang biar nomor kontak anggota ikut kebaca
+    call('getData').then(segarkan).catch(function(){});
   }).catch(gagal);
+}
+function buangKontak(){
+  if(DATA && DATA.anggota){
+    DATA.anggota.forEach(function(a){ delete a.Kontak; });
+    segarkan(DATA);
+  } else {
+    render();
+  }
 }
 function gagal(err){
   var pesan = (err && err.message) ? err.message : 'Terjadi kesalahan';
-  if(pesan.indexOf('Kode pengurus') > -1){ KODE = ''; try{ sessionStorage.removeItem('ai_kode'); }catch(e){} render(); }
+  if(pesan.indexOf('Kode pengurus') > -1){ KODE = ''; try{ sessionStorage.removeItem('ai_kode'); }catch(e){} buangKontak(); }
   toast(pesan, true);
 }
 
 /* ---------------- load ---------------- */
 var SIMPAN_LOKAL = 'ai_data_v1';
 function simpanLokal(d){
-  try { localStorage.setItem(SIMPAN_LOKAL, JSON.stringify(d)); } catch(e){}
+  // nomor kontak nggak ikut disimpan di HP
+  try {
+    var salin = JSON.parse(JSON.stringify(d));
+    (salin.anggota || []).forEach(function(a){ delete a.Kontak; });
+    localStorage.setItem(SIMPAN_LOKAL, JSON.stringify(salin));
+  } catch(e){}
 }
 function ambilLokal(){
   try { var t = localStorage.getItem(SIMPAN_LOKAL); return t ? JSON.parse(t) : null; } catch(e){ return null; }
