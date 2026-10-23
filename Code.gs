@@ -76,6 +76,8 @@ function _jalankan(fn, args) {
   if (API_FUNGSI.indexOf(fn) === -1) throw new Error('Fungsi ' + fn + ' tidak tersedia.');
   const f = globalThis[fn];
   if (typeof f !== 'function') throw new Error('Fungsi ' + fn + ' belum ada di Code.gs.');
+  // fungsi yang ngubah data: buang cache dulu biar hasil yang dikirim balik selalu terbaru
+  if (fn !== 'getData' && fn !== 'cekKode') _hapusCache();
   return f.apply(null, Array.isArray(args) ? args : []);
 }
 
@@ -181,6 +183,7 @@ function setupSpreadsheet() {
     SpreadsheetApp.newDataValidation().requireValueInList(JENIS_LIST, true).build());
   kg.getRange('F2:F').setNumberFormat('#,##0');
 
+  _hapusCache();
   return 'Setup selesai. Lanjut deploy web app.';
 }
 
@@ -371,6 +374,7 @@ function isiDataRapat() {
     }
   }
 
+  _hapusCache();
   return catatan.length ? 'Ditambahkan:\n' + catatan.join('\n') : 'Semua data sudah ada, nggak ada yang ditambah.';
 }
 
@@ -461,7 +465,55 @@ function _guard(kode) {
 
 /* ============================ READ ============================ */
 
+/* ---- cache data biar baca cepat ---- */
+const CACHE_DETIK = 300;      // data dianggap segar 5 menit
+const CACHE_POTONG = 90000;   // batas aman ukuran per kunci cache
+
+function _hapusCache() {
+  const cache = CacheService.getScriptCache();
+  const n = Number(cache.get('data_n') || 0);
+  const kunci = ['data_n'];
+  for (let i = 0; i < n; i++) kunci.push('data_' + i);
+  cache.removeAll(kunci);
+}
+
+function _simpanCache(obj) {
+  try {
+    const teks = JSON.stringify(obj);
+    const isi = {};
+    let n = 0;
+    for (let i = 0; i < teks.length; i += CACHE_POTONG) isi['data_' + (n++)] = teks.slice(i, i + CACHE_POTONG);
+    isi.data_n = String(n);
+    CacheService.getScriptCache().putAll(isi, CACHE_DETIK);
+  } catch (e) { /* cache cuma bonus, gagal nggak masalah */ }
+}
+
+function _ambilCache() {
+  try {
+    const cache = CacheService.getScriptCache();
+    const n = Number(cache.get('data_n') || 0);
+    if (!n) return null;
+    const kunci = [];
+    for (let i = 0; i < n; i++) kunci.push('data_' + i);
+    const semua = cache.getAll(kunci);
+    let teks = '';
+    for (let i = 0; i < n; i++) {
+      if (semua['data_' + i] == null) return null;
+      teks += semua['data_' + i];
+    }
+    return JSON.parse(teks);
+  } catch (e) { return null; }
+}
+
 function getData() {
+  const cached = _ambilCache();
+  if (cached) return cached;
+  const data = _bacaSemua();
+  _simpanCache(data);
+  return data;
+}
+
+function _bacaSemua() {
   _autoSelesai();
   return {
     program: _read(SHEETS.program).sort(function (a, b) {

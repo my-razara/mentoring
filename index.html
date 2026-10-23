@@ -230,6 +230,16 @@
   .member.off .who b{color:var(--muted);}
   .member .act{display:flex;gap:6px;flex-shrink:0;}
 
+  .sibuk{
+    position:fixed;top:0;left:0;right:0;height:3px;z-index:95;overflow:hidden;pointer-events:none;
+  }
+  .sibuk[hidden]{display:none;}
+  .sibuk i{
+    position:absolute;top:0;bottom:0;width:35%;background:#E0A82E;border-radius:2px;
+    animation:sibuk 1s ease-in-out infinite;
+  }
+  @keyframes sibuk{from{left:-35%;}to{left:100%;}}
+  @media(prefers-reduced-motion:reduce){.sibuk i{animation:none;left:0;width:100%;opacity:.7;}}
   .toast{
     position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:90;
     background:var(--ink);color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;
@@ -530,6 +540,7 @@
   <p id="fotoNama"></p>
 </div>
 
+<div class="sibuk" id="sibuk" hidden><i></i></div>
 <div class="toast" id="toast" hidden></div>
 
 <script src="config.js"></script>
@@ -557,7 +568,17 @@ function toast(msg, err){
   t.textContent = msg; t.className = 'toast' + (err ? ' err' : ''); t.hidden = false;
   clearTimeout(toast._t); toast._t = setTimeout(function(){ t.hidden = true; }, 3000);
 }
+var jalan = 0;
+function sibuk(n){
+  jalan = Math.max(0, jalan + n);
+  var el = document.getElementById('sibuk');
+  if(el) el.hidden = jalan === 0;
+}
 function call(fn, args){
+  sibuk(1);
+  return panggil(fn, args).then(function(d){ sibuk(-1); return d; }, function(e){ sibuk(-1); throw e; });
+}
+function panggil(fn, args){
   var url = window.API_URL || '';
   if(!url || url.indexOf('script.google.com') === -1){
     return Promise.reject(new Error('API_URL di config.js belum diisi.'));
@@ -671,22 +692,37 @@ function gagal(err){
 }
 
 /* ---------------- load ---------------- */
+var SIMPAN_LOKAL = 'ai_data_v1';
+function simpanLokal(d){
+  try { localStorage.setItem(SIMPAN_LOKAL, JSON.stringify(d)); } catch(e){}
+}
+function ambilLokal(){
+  try { var t = localStorage.getItem(SIMPAN_LOKAL); return t ? JSON.parse(t) : null; } catch(e){ return null; }
+}
+function tampilkan(d){
+  DATA = d;
+  document.getElementById('loading').hidden = true;
+  document.getElementById('app').hidden = false;
+  document.getElementById('tabbar').hidden = false;
+  isiOpsi();
+  pasangTab();
+  render();
+}
 function muat(){
+  // tampilkan data terakhir yang tersimpan di HP dulu, lalu perbarui dari server
+  var lama = ambilLokal();
+  if(lama && lama.program) tampilkan(lama);
   call('getData').then(function(d){
-    DATA = d;
-    document.getElementById('loading').hidden = true;
-    document.getElementById('app').hidden = false;
-    document.getElementById('tabbar').hidden = false;
-    isiOpsi();
-    pasangTab();
-    render();
+    simpanLokal(d);
+    if(DATA) segarkan(d); else tampilkan(d);
   }).catch(function(e){
-    document.getElementById('loading').textContent = 'Gagal memuat data. ' + ((e && e.message) || '') + ' Muat ulang halaman buat coba lagi.';
     console.error(e);
+    if(DATA){ toast('Gagal memperbarui data, yang tampil data terakhir.', true); return; }
+    document.getElementById('loading').textContent = 'Gagal memuat data. ' + ((e && e.message) || '') + ' Muat ulang halaman buat coba lagi.';
   });
 }
 function segarkan(d){
-  DATA = d; render();
+  DATA = d; simpanLokal(d); render();
   if(aktif) bukaDetail(aktif, true);
   if(!document.getElementById('anggota').hidden) renderAnggota();
 }
@@ -1435,9 +1471,16 @@ function editCkBatal(){
   if(aktif) bukaDetail(aktif, true);
 }
 function toggleCk(id, val){
+  // langsung ubah di layar, server nyusul di belakang
+  var item = DATA.persiapan.filter(function(c){ return c.ID === id; })[0];
+  var awal = item ? item.Selesai : null;
+  if(item){ item.Selesai = val ? 'Selesai' : 'Belum'; segarkan(DATA); }
   call('togglePersiapan', [id, val]).then(function(d){
     segarkan(d); toast(val ? 'Ditandai beres' : 'Ditandai belum');
-  }).catch(gagal);
+  }).catch(function(e){
+    if(item){ item.Selesai = awal; segarkan(DATA); }
+    gagal(e);
+  });
 }
 function hapusCk(id){
   if(!confirm('Hapus item persiapan ini?')) return;
