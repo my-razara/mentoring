@@ -5,15 +5,17 @@
  * Tampilan ada di GitHub (repo mentoring), file ini cuma API ke spreadsheet.
  * 1. Paste file ini ke Code.gs di Apps Script spreadsheet mentoring
  * 2. Hapus file HTML "Index" dari project Apps Script (udah nggak dipakai)
- * 3. Jalankan setupSpreadsheet() sekali kalau sheet belum lengkap
+ * 3. Project Settings > Script Properties > tambah KODE_PENGURUS (kode rahasia)
+ *    Jalankan setupSpreadsheet() sekali kalau sheet belum lengkap
  * 4. Deploy > New deployment > Web app
  *    - Execute as: Me
  *    - Who has access: Anyone
  * 5. Copy URL /exec-nya ke config.js di repo GitHub
  */
 
-// Kode buat masuk mode pengurus (yang boleh nambah/edit/hapus). Ganti sesuai selera.
-const KODE_PENGURUS = 'istiqomah123';
+// Kode pengurus TIDAK ditulis di file ini supaya aman walau repo publik.
+// Simpan di Apps Script: Project Settings (ikon gerigi) > Script Properties >
+// Add script property, nama: KODE_PENGURUS, nilai: kode rahasia kalian.
 
 const SHEETS = {
   program: 'Program',
@@ -424,10 +426,37 @@ function _newId(prefix) {
   return prefix + '-' + Date.now().toString(36) + Math.floor(Math.random() * 90 + 10);
 }
 
-function _guard(kode) {
-  if (String(kode || '').trim() !== KODE_PENGURUS) {
-    throw new Error('Kode pengurus salah. Data tidak diubah.');
+/* ---- kode pengurus + batas percobaan ---- */
+const BATAS_SALAH = 8;          // salah sebanyak ini...
+const JEDA_KUNCI_DETIK = 600;   // ...mode pengurus dikunci 10 menit
+
+function _kodeAsli() {
+  const k = PropertiesService.getScriptProperties().getProperty('KODE_PENGURUS');
+  if (!k || !String(k).trim()) {
+    throw new Error('Kode pengurus belum diatur di Script Properties Apps Script.');
   }
+  return String(k).trim();
+}
+
+function _cocok(kode) {
+  const cache = CacheService.getScriptCache();
+  if (cache.get('kunci_pengurus')) {
+    throw new Error('Terlalu banyak percobaan kode salah. Coba lagi 10 menit lagi.');
+  }
+  if (String(kode || '').trim() === _kodeAsli()) return true;
+
+  const salah = Number(cache.get('salah_pengurus') || 0) + 1;
+  if (salah >= BATAS_SALAH) {
+    cache.put('kunci_pengurus', '1', JEDA_KUNCI_DETIK);
+    cache.remove('salah_pengurus');
+  } else {
+    cache.put('salah_pengurus', String(salah), JEDA_KUNCI_DETIK);
+  }
+  return false;
+}
+
+function _guard(kode) {
+  if (!_cocok(kode)) throw new Error('Kode pengurus salah. Data tidak diubah.');
 }
 
 /* ============================ READ ============================ */
@@ -504,7 +533,7 @@ function _autoSelesai() {
 }
 
 function cekKode(kode) {
-  return String(kode || '').trim() === KODE_PENGURUS;
+  return _cocok(kode);
 }
 
 /* ============================ WRITE: PROGRAM ============================ */
