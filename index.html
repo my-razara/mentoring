@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Ashabul Istiqomah</title>
 <meta name="theme-color" content="#051d29">
+<link rel="icon" type="image/jpeg" href="https://lh3.googleusercontent.com/d/1frauD-xWoBhWkL8Uoi9zz46_AFZ7Qhsj=w192">
+<link rel="apple-touch-icon" href="https://lh3.googleusercontent.com/d/1frauD-xWoBhWkL8Uoi9zz46_AFZ7Qhsj=w180">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -32,6 +34,8 @@
   /* ---------- header ---------- */
   .topbar{background:var(--primary-dark);color:#FFFFFF;padding:22px 0 26px;}
   .topbar .wrap{padding-bottom:0;display:flex;align-items:flex-start;gap:12px;justify-content:space-between;}
+  .brand{display:flex;align-items:center;gap:12px;min-width:0;}
+  .brand-logo{width:44px;height:44px;border-radius:50%;object-fit:cover;flex-shrink:0;background:#fff;}
   .brand h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-0.01em;line-height:1.2;}
   .brand p{margin:3px 0 0;font-size:13.5px;font-weight:500;color:#A9C4D4;}
   .key-btn{
@@ -407,8 +411,11 @@
 <header class="topbar">
   <div class="wrap">
     <div class="brand">
+      <img class="brand-logo" src="https://lh3.googleusercontent.com/d/1frauD-xWoBhWkL8Uoi9zz46_AFZ7Qhsj=w120" alt="Logo Ashabul Istiqomah" onerror="this.remove()">
+      <div>
       <h1>Ashabul Istiqomah</h1>
       <p>Program mentoring dan rundown kegiatan</p>
+      </div>
     </div>
     <button class="key-btn" id="keyBtn" onclick="toggleKode()">Mode pengurus</button>
   </div>
